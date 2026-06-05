@@ -1,85 +1,60 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-import yt_dlp
-import os
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
+import asyncio
 
 TOKEN = "8818895591:AAGH577sseS4urhHVhWHjz6ciDK3hS7DhMA"
 
-user_data = {}
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🎥 YouTube", callback_data="yt")],
-        [InlineKeyboardButton("📱 TikTok", callback_data="tt")],
-        [InlineKeyboardButton("📷 Instagram", callback_data="ig")],
-        [InlineKeyboardButton("🎵 Sadece Müzik", callback_data="audio")],
-    ]
     await update.message.reply_text(
-        "🚀 **İndirme Botu**\n\nPlatform seç → Link gönder",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        "👤 **Gelişmiş Profil Fotoğrafı Botu**\n\n"
+        "Kullanım:\n"
+        "• `/pp` → Kendi fotoğrafın\n"
+        "• Bir mesaja reply yapıp `/pp` → O kişinin fotoğrafı\n"
+        "• `/pp @username` → Belirtilen kişinin fotoğrafı"
     )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    user_data[user_id] = {"mode": query.data}
-    await query.edit_message_text("✅ Seçildi!\nŞimdi linki gönder:")
+async def pp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Reply varsa reply yapılan kişiyi al
+    if update.message.reply_to_message:
+        user = update.message.reply_to_message.from_user
+    else:
+        # Komut argümanı varsa (@username)
+        if context.args:
+            try:
+                user = await context.bot.get_chat(context.args[0].replace("@", ""))
+            except:
+                await update.message.reply_text("❌ Kullanıcı bulunamadı!")
+                return
+        else:
+            # Hiçbiri yoksa kendi profil
+            user = update.message.from_user
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    data = user_data.get(user_id)
-    if not data:
-        await update.message.reply_text("Önce butonlardan seçim yap!")
+    if not user:
+        await update.message.reply_text("❌ Kullanıcı bulunamadı.")
         return
 
-    url = update.message.text.strip()
-    mode = data["mode"]
-    msg = await update.message.reply_text("🔄 İndiriliyor...")
-
-    ydl_opts = {
-        'outtmpl': '%(title)s.%(ext)s',
-        'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
-        'extractor_retries': 3,
-        'socket_timeout': 30,
-        'http_chunk_size': 10485760,
-    }
-
-    if mode == "audio":
-        ydl_opts.update({
-            'format': 'bestaudio/best',
-            'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}]
-        })
-
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-
-        if os.path.exists(filename):
-            if mode == "audio":
-                await update.message.reply_audio(open(filename, 'rb'), caption=info.get('title', 'Müzik'))
-            else:
-                await update.message.reply_video(open(filename, 'rb'), caption=info.get('title', 'Video'))
-            os.remove(filename)
-            if user_id in user_data:
-                del user_data[user_id]
+        photos = await context.bot.get_user_profile_photos(user.id, limit=1)
+        
+        if photos.total_count > 0:
+            photo = photos.photos[0][-1]  # En büyük boyut
+            await update.message.reply_photo(
+                photo.file_id,
+                caption=f"👤 **{user.first_name}**'nin Profil Fotoğrafı\n"
+                        f"ID: `{user.id}`\n"
+                        f"Username: @{user.username if user.username else 'Yok'}",
+                parse_mode='Markdown'
+            )
         else:
-            await msg.edit_text("❌ Dosya indirilemedi.")
+            await update.message.reply_text(f"❌ **{user.first_name}**'nin profil fotoğrafı yok.")
     except Exception as e:
-        error_str = str(e)
-        if "Sign in" in error_str or "bot" in error_str:
-            await msg.edit_text("❌ YouTube bot algıladı.\nBaşka bir link dene veya daha sonra tekrar dene.")
-        else:
-            await msg.edit_text(f"❌ Hata: {error_str[:250]}")
+        await update.message.reply_text("❌ Profil fotoğrafı alınamadı.")
 
-# Bot Başlat
+# ====================== BOT ======================
 app = Application.builder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(button_handler))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-print("🚀 Bot Çalışıyor...")
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler(["pp", "profil", "foto"], pp))
+
+print("✅ Gelişmiş Profil Fotoğrafı Botu Çalışıyor...")
 app.run_polling()
