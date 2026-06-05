@@ -15,8 +15,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🎵 Sadece Müzik", callback_data="audio")],
     ]
     await update.message.reply_text(
-        "🚀 **İndirme Botu**\n\n"
-        "Aşağıdan ne indirmek istediğini seç, sonra linki gönder.",
+        "🚀 **İndirme Botu**\n\nPlatform seç ve link gönder.",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -24,27 +23,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-    
     user_data[user_id] = {"mode": query.data}
-    await query.edit_message_text("✅ Seçildi!\n\nŞimdi linki gönder (YouTube, TikTok, Instagram):")
+    await query.edit_message_text("✅ Seçildi!\n\nŞimdi linki gönder:")
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     data = user_data.get(user_id)
     
     if not data:
-        await update.message.reply_text("Önce yukarıdaki butonlardan birini seç!")
+        await update.message.reply_text("Önce butonlardan platform seç!")
         return
 
     url = update.message.text.strip()
     mode = data["mode"]
-    
-    msg = await update.message.reply_text("🔄 İndiriliyor, lütfen bekle...")
+    msg = await update.message.reply_text("🔄 İndiriliyor...")
 
     ydl_opts = {
         'outtmpl': '%(title)s.%(ext)s',
         'noplaylist': True,
-        'cookiesfrombrowser': 'chrome',   # YouTube için önemli
     }
 
     if mode == "audio":
@@ -60,22 +56,22 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if os.path.exists(filename):
             if mode == "audio":
-                await update.message.reply_audio(open(filename, 'rb'), caption=f"🎵 {info.get('title','Müzik')}")
+                await update.message.reply_audio(open(filename, 'rb'), caption=info.get('title', 'Müzik'))
             else:
-                await update.message.reply_video(open(filename, 'rb'), caption=f"🎥 {info.get('title','Video')}")
+                await update.message.reply_video(open(filename, 'rb'), caption=info.get('title', 'Video'))
             os.remove(filename)
-            del user_data[user_id]
+            if user_id in user_data:
+                del user_data[user_id]
         else:
             await msg.edit_text("❌ Dosya indirilemedi.")
     except Exception as e:
-        await msg.edit_text(f"❌ Hata: {str(e)[:250]}")
+        await msg.edit_text(f"❌ Hata: {str(e)[:300]}")
 
-# ====================== BOT BAŞLAT ======================
+# Bot
 app = Application.builder().token(TOKEN).build()
-
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button_handler))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-print("Bot çalışıyor...")
+print("🚀 Bot Çalışıyor...")
 app.run_polling()
