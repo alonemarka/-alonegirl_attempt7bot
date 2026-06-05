@@ -6,11 +6,11 @@ TOKEN = "8818895591:AAGH577sseS4urhHVhWHjz6ciDK3hS7DhMA"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👤 **Gelişmiş Profil Fotoğrafı Botu**\n\n"
+        "👤 Gelişmiş Profil Fotoğrafı Botu\n\n"
         "Kullanım:\n"
-        "• `/pp` → Kendi fotoğrafın\n"
-        "• Bir mesaja reply yapıp `/pp` → O kişinin fotoğrafı\n"
-        "• `/pp @username` → Belirtilen kişinin fotoğrafı"
+        "• /pp → Kendi fotoğrafın\n"
+        "• Bir mesaja reply yapıp /pp → O kişinin fotoğrafı\n"
+        "• /pp @username → Belirtilen kişinin fotoğrafı"
     )
 
 async def pp(update: Update, context: ContextTypes.DEFAULT_TYPE):
