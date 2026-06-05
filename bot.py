@@ -15,7 +15,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🎵 Sadece Müzik", callback_data="audio")],
     ]
     await update.message.reply_text(
-        "🚀 **İndirme Botu**\n\nPlatform seç ve link gönder.",
+        "🚀 **İndirme Botu**\n\nPlatform seç → Link gönder",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -24,14 +24,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
     user_data[user_id] = {"mode": query.data}
-    await query.edit_message_text("✅ Seçildi!\n\nŞimdi linki gönder:")
+    await query.edit_message_text("✅ Seçildi!\nŞimdi linki gönder:")
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     data = user_data.get(user_id)
-    
     if not data:
-        await update.message.reply_text("Önce butonlardan platform seç!")
+        await update.message.reply_text("Önce butonlardan seçim yap!")
         return
 
     url = update.message.text.strip()
@@ -41,6 +40,11 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ydl_opts = {
         'outtmpl': '%(title)s.%(ext)s',
         'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
+        'extractor_retries': 3,
+        'socket_timeout': 30,
+        'http_chunk_size': 10485760,
     }
 
     if mode == "audio":
@@ -65,9 +69,13 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await msg.edit_text("❌ Dosya indirilemedi.")
     except Exception as e:
-        await msg.edit_text(f"❌ Hata: {str(e)[:300]}")
+        error_str = str(e)
+        if "Sign in" in error_str or "bot" in error_str:
+            await msg.edit_text("❌ YouTube bot algıladı.\nBaşka bir link dene veya daha sonra tekrar dene.")
+        else:
+            await msg.edit_text(f"❌ Hata: {error_str[:250]}")
 
-# Bot
+# Bot Başlat
 app = Application.builder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button_handler))
