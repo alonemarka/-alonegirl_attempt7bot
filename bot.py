@@ -5,18 +5,17 @@ import os
 
 TOKEN = "8818895591:AAGH577sseS4urhHVhWHjz6ciDK3hS7DhMA"
 
-# Kullanıcı verilerini tutmak için
 user_data = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("🎥 YouTube", callback_data="platform_yt")],
-        [InlineKeyboardButton("📱 TikTok", callback_data="platform_tt")],
-        [InlineKeyboardButton("📷 Instagram", callback_data="platform_ig")],
+        [InlineKeyboardButton("🎥 YouTube", callback_data="yt")],
+        [InlineKeyboardButton("📱 TikTok", callback_data="tt")],
+        [InlineKeyboardButton("📷 Instagram", callback_data="ig")],
     ]
     await update.message.reply_text(
-        "🚀 **Ultra İndirme Botu**\n\n"
-        "Aşağıdan platform seç, sonra kalite ve link at.",
+        "🚀 **Ultra Downloader Bot v2**\n\n"
+        "Platform seç → Kalite seç → Link at",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -25,80 +24,64 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
 
-    if query.data.startswith("platform_"):
-        platform = query.data.split("_")[1]
-        user_data[user_id] = {"platform": platform, "step": "quality"}
-        
-        keyboard = [
-            [InlineKeyboardButton("🔝 Best Kalite", callback_data="quality_best")],
-            [InlineKeyboardButton("📹 1080p", callback_data="quality_1080")],
-            [InlineKeyboardButton("📺 720p", callback_data="quality_720")],
-            [InlineKeyboardButton("🎵 Sadece Ses (MP3)", callback_data="quality_audio")],
-        ]
-        await query.edit_message_text("✅ Platform seçildi.\nŞimdi kalite seç:", reply_markup=InlineKeyboardMarkup(keyboard))
+    platform = query.data
+    user_data[user_id] = {"platform": platform, "step": "quality"}
 
-    elif query.data.startswith("quality_"):
-        quality = query.data.split("_")[1]
-        user_data[user_id]["quality"] = quality
-        user_data[user_id]["step"] = "link"
-        await query.edit_message_text("✅ Kalite seçildi.\n\nŞimdi linki gönder:")
+    keyboard = [
+        [InlineKeyboardButton("Best Kalite", callback_data="q_best")],
+        [InlineKeyboardButton("1080p", callback_data="q_1080")],
+        [InlineKeyboardButton("720p", callback_data="q_720")],
+        [InlineKeyboardButton("🎵 Sadece MP3", callback_data="q_audio")],
+    ]
+    await query.edit_message_text("Kalite seç:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     data = user_data.get(user_id)
-
-    if not data or data.get("step") != "link":
-        await update.message.reply_text("Önce menüden platform ve kalite seç!")
+    if not data or data.get("step") != "quality":
+        await update.message.reply_text("Önce menüden seçim yap!")
         return
 
     url = update.message.text.strip()
-    msg = await update.message.reply_text("🔄 İndiriliyor... Bu işlem biraz uzun sürebilir.")
+    msg = await update.message.reply_text("🔄 İndiriliyor...")
 
-    # Kalite ayarları
-    quality = data["quality"]
-    ydl_opts = {
+    opts = {
         'outtmpl': '%(title)s.%(ext)s',
         'noplaylist': True,
+        'quiet': True,
     }
 
-    if quality == "audio":
-        ydl_opts.update({
-            'format': 'bestaudio/best',
-            'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}]
-        })
-    elif quality == "1080":
-        ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best'
-    elif quality == "720":
-        ydl_opts['format'] = 'bestvideo[height<=720]+bestaudio/best'
-    elif quality == "480":
-        ydl_opts['format'] = 'bestvideo[height<=480]+bestaudio/best'
+    if data["platform"] == "yt":
+        opts['cookiesfrombrowser'] = 'chrome'   # Bu satır çok önemli
+
+    if data.get("quality") == "q_audio":
+        opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3'}]})
+    elif data.get("quality") == "q_1080":
+        opts['format'] = 'bestvideo[height<=1080]+bestaudio/best'
+    elif data.get("quality") == "q_720":
+        opts['format'] = 'bestvideo[height<=720]+bestaudio/best'
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
         if os.path.exists(filename):
-            if quality == "audio":
-                await update.message.reply_audio(open(filename, 'rb'), caption=f"🎵 {info.get('title', 'Müzik')}")
+            if "audio" in data.get("quality", ""):
+                await update.message.reply_audio(open(filename, 'rb'), caption=info.get('title', 'Müzik'))
             else:
-                await update.message.reply_video(open(filename, 'rb'), caption=f"🎥 {info.get('title', 'Video')}")
+                await update.message.reply_video(open(filename, 'rb'), caption=info.get('title', 'Video'))
             os.remove(filename)
-            
-            # Temizle
-            if user_id in user_data:
-                del user_data[user_id]
+            del user_data[user_id]
         else:
-            await msg.edit_text("❌ Dosya indirilemedi.")
+            await msg.edit_text("❌ Dosya bulunamadı.")
     except Exception as e:
-        await msg.edit_text(f"❌ Hata: {str(e)[:250]}")
+        await msg.edit_text(f"❌ Hata: {str(e)[:200]}")
 
-# Bot Başlatma
+# Bot
 app = Application.builder().token(TOKEN).build()
-
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button_handler))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-print("🚀 Ultra Bot Çalışıyor...")
 app.run_polling()
